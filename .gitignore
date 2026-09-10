@@ -1,0 +1,6 @@
+.env
+.venv
+
+# Automatically created (useless) files
+.DS_Store
+__pycache__/
