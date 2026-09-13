@@ -39,12 +39,17 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-4. (Optional) Check all the packages you have installed by running
+4. Configure nbstripout for this repository so that Jupyter Notebook outputs are automatically stripped before being stored in Git (you only need to do this once per local clone of the repository)
+```bash
+nbstripout --install
+```
+
+5. (Optional) Check all the packages you have installed by running
 ```bash
 python -m pip list
 ```
 
-5. (Optional) Verify that your python is pointing to your virtual environment by running
+6. (Optional) Verify that your python is pointing to your virtual environment by running
 ```bash
 which python
 ```
