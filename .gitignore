@@ -1,6 +1,10 @@
 .env
 .venv
 
+# local data
+data/*
+!data/.gitkeep
+
 # Automatically created (useless) files
 .DS_Store
 __pycache__/
