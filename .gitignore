@@ -2,7 +2,8 @@
 .venv
 
 # local data
-data
+data/*
+!data/.gitkeep
 
 # Automatically created (useless) files
 .DS_Store
