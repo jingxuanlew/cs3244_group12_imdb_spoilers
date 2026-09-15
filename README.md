@@ -44,12 +44,17 @@ python -m pip install -r requirements.txt
 nbstripout --install
 ```
 
-5. (Optional) Check all the packages you have installed by running
+5. Download dataset from kaggle
+```bash
+python src/data_loader.py
+```
+
+6. (Optional) Check all the packages you have installed by running
 ```bash
 python -m pip list
 ```
 
-6. (Optional) Verify that your python is pointing to your virtual environment by running
+7. (Optional) Verify that your python is pointing to your virtual environment by running
 ```bash
 which python
 ```
