@@ -46,7 +46,7 @@ nbstripout --install
 
 5. Download dataset from kaggle
 ```bash
-python src/data_loader.py
+python src/download_data.py
 ```
 
 6. (Optional) Check all the packages you have installed by running
