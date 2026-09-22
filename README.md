@@ -60,6 +60,38 @@ which python
 ```
 This should point to something ending with `.venv/bin/python`
 
+## Spoiler-Warning Ablation (RQ4)
+
+After downloading the dataset, run from the repository root:
+
+```bash
+python src/clean_spoilers.py
+```
+
+This removes explicit cues such as `SPOILER`, `spoilers ahead`, and `spoiler alert`
+from `review_text` and `review_summary`, ignoring case. It writes
+`data/processed/IMDB_reviews_remove.json`, leaving the raw file intact. Labels,
+metadata, and review order are preserved.
+
+To replace matches with `[MASK]` instead:
+
+```bash
+python src/clean_spoilers.py --mode mask
+```
+
+The masked version is saved to `data/processed/IMDB_reviews_mask.json`. 
+
+You can specify other JSON-lines files (one review per line, even with a `.json`
+extension):
+
+```bash
+python src/clean_spoilers.py --input data/raw/IMDB_reviews.json --output data/processed/ablation.json
+```
+
+Edit `SPOILER_TERMS` in `src/clean_spoilers.py` to adjust the phrase list. Matching
+uses whole words and accepts spaces, hyphens, or underscores between phrase words.
+
+
 ## Adding New Package(s)
 
 If you would like to add a new package e.g. pytest, follow these steps (on a new branch)
