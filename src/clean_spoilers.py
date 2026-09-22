@@ -50,6 +50,13 @@ def clean_text(text, replacement=" "):
 def clean_reviews(input_path, output_path):
     """Stream reviews to a separate file, returning total and changed row counts."""
     input_path, output_path = Path(input_path), Path(output_path)
+
+    if not input_path.exists():
+        raise FileNotFoundError(
+            f"{input_path} does not exist. "
+            "Run `python src/data_cleaning.py` first."
+        )
+    
     if input_path.resolve() == output_path.resolve():
         raise ValueError("Input and output must be different files.")
 
@@ -75,10 +82,10 @@ def clean_reviews(input_path, output_path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input", type=Path, default=Path("data/raw/IMDB_reviews.json"), help="Input JSON-lines file (one review per line).")
+    parser.add_argument("--input", type=Path, default=Path("data/cleaned/IMDB_reviews.json"), help="Input cleaned JSON-lines file (one review per line).")
     parser.add_argument("--output", type=Path, help="Output file; defaults to data/processed/IMDB_reviews_<mode>.json.")
     args = parser.parse_args()
-    output = args.output or Path(f"data/processed/IMDB_reviews_{date.today()}.json")
+    output = args.output or Path(f"data/processed/IMDB_reviews_spoiler_masked.json")
     total, changed = clean_reviews(args.input, output)
     print(f"Processed {total} reviews, changed {changed} reviews.")
     print(f"Saved to {output}")
