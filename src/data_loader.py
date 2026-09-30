@@ -1,19 +1,40 @@
 from pathlib import Path
-import kagglehub
 
-DATASET = "rmisra/imdb-spoiler-dataset"
-RAW_DATA_DIRECTORY = Path("data/raw")
+import pandas as pd
 
-def download_data():
-    # Make data/raw directory if doesn't exist yet
-    RAW_DATA_DIRECTORY.mkdir(parents=True, exist_ok=True)
+# Path(__file__).resolve() => /Users/bob/.../cs3244_group12_imdb_spoilers/src/data_loader.py
+# .parents[1] gives cs3244_group12_imdb_spoilers
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+RAW_DATA_DIRECTORY = PROJECT_ROOT / "data" / "raw" # cs3244_group12_imdb_spoilers/data/raw
 
-    path = kagglehub.dataset_download(
-        DATASET,
-        output_dir=RAW_DATA_DIRECTORY
+
+def load_reviews() -> pd.DataFrame:
+    """Load the raw IMDB reviews dataset."""
+    file_path = RAW_DATA_DIRECTORY / "IMDB_reviews.json"
+
+    if not file_path.exists():
+        raise FileNotFoundError(
+            f"{file_path} does not exist. "
+            "Run `python scripts/download_data.py` first."
+        )
+
+    return pd.read_json(
+        file_path,
+        lines=True,
     )
 
-    print(f"dataset downloaded to {path} ")
 
-if __name__ == "__main__":
-    download_data()
+def load_movie_details() -> pd.DataFrame:
+    """Load the raw IMDB movie metadata dataset."""
+    file_path = RAW_DATA_DIRECTORY / "IMDB_movie_details.json"
+
+    if not file_path.exists():
+        raise FileNotFoundError(
+            f"{file_path} does not exist. "
+            "Run `python scripts/download_data.py` first."
+        )
+
+    return pd.read_json(
+        file_path,
+        lines=True,
+    )
