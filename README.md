@@ -54,12 +54,22 @@ python src/download_data.py
 python src/data_cleaning.py
 ```
 
-7. (Optional) Check all the packages you have installed by running
+7. Create the train/test split
+```bash
+python src/split_data.py
+```
+
+8. Run the majority-class baseline
+```bash
+python -m src.baseline_majority
+```
+
+9. (Optional) Check all the packages you have installed by running
 ```bash
 python -m pip list
 ```
 
-8. (Optional) Verify that your python is pointing to your virtual environment by running
+10. (Optional) Verify that your python is pointing to your virtual environment by running
 ```bash
 which python
 ```
