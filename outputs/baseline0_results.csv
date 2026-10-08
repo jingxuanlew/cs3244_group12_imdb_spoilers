@@ -1,2 +1,2 @@
 model,split,accuracy,precision,recall,f1,macro_f1,tn,fp,fn,tp,pr_auc,spoiler_rate_test
-majority_baseline,shared_text_grouped,0.7368,0.0,0.0,0.0,0.4242,84694,0,30254,0,0.2632,0.2632
+majority_baseline,shared_text_grouped,0.737,0.0,0.0,0.0,0.4243,84598,0,30185,0,0.263,0.263
