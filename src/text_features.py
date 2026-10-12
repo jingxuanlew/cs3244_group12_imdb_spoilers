@@ -1,4 +1,8 @@
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import StratifiedGroupKFold
+
+from .clean_spoilers import clean_text
+from .split_data import get_split_groups
 
 
 def create_tfidf_vectorizer(
@@ -41,19 +45,18 @@ def create_tfidf_vectorizer(
         max_features=max_features,
     )
 
-from sklearn.model_selection import StratifiedGroupKFold
-
-
 def generate_tfidf_folds(
     reviews,
     k=5,
     text_col="review_text",
     label_col="is_spoiler",
-    random_state=42,
+    random_state=67,
     ngram_range=(1, 1),
     min_df=1,
     max_df=1.0,
     max_features=None,
+    group_by="review_text",
+    remove_spoilers=False,
 ):
     """
     Generate stratified cross-validation folds with leakage-safe TF-IDF.
@@ -82,23 +85,29 @@ def generate_tfidf_folds(
     ngram_range, min_df, max_df, max_features
         TF-IDF configuration passed to create_tfidf_vectorizer().
 
+    group_by : str
+        "review_text" for the standard split or "movie_id" for RQ3.
+        Must match the outer split strategy.
+
+    remove_spoilers : bool
+        Remove warning phrases from model input after assigning folds.
+        Pass the same original training DataFrame, k and random_state for
+        both conditions; grouping always accounts for cue-removed duplicates.
+
     Yields
     ------
     dict
         Dictionary containing the fold number, transformed train/validation
-        matrices, labels, and fitted vectorizer.
+        matrices, labels, fitted vectorizer, and positional train/val indices.
     """
 
     if k < 2:
         raise ValueError("k must be at least 2.")
 
-    # StratifiedGroupKFold serves two purposes:
-    # 1. Stratification:
-    #    tries to preserve the spoiler/non-spoiler class distribution
-    #    across the folds
-    # 2. Grouping:
-    #    keeps rows with identical review_text together so the same exact
-    #    review cannot appear in both training and validation within a fold
+    grouping_reviews = reviews.assign(review_text=reviews[text_col])
+    groups = get_split_groups(grouping_reviews, group_by)
+    if len(set(groups)) < k:
+        raise ValueError(f"Need at least {k} independent groups.")
     sgkf = StratifiedGroupKFold(
         n_splits=k,
         shuffle=True,
@@ -109,12 +118,17 @@ def generate_tfidf_folds(
         sgkf.split(
             X=reviews[text_col],
             y=reviews[label_col],
-            groups=reviews[text_col],
+            groups=groups,
         ),
         start=1,
     ):
         fold_train = reviews.iloc[train_idx]
         fold_val = reviews.iloc[val_idx]
+        train_text = fold_train[text_col]
+        val_text = fold_val[text_col]
+        if remove_spoilers:
+            train_text = train_text.map(clean_text)
+            val_text = val_text.map(clean_text)
 
         vectorizer = create_tfidf_vectorizer(
             ngram_range=ngram_range,
@@ -124,11 +138,11 @@ def generate_tfidf_folds(
         )
 
         X_train = vectorizer.fit_transform(
-            fold_train[text_col]
+            train_text
         )
 
         X_val = vectorizer.transform(
-            fold_val[text_col]
+            val_text
         )
 
         y_train = fold_train[label_col].to_numpy()
@@ -141,4 +155,6 @@ def generate_tfidf_folds(
             "y_train": y_train,
             "y_val": y_val,
             "vectorizer": vectorizer,
+            "train_idx": train_idx,
+            "val_idx": val_idx,
         }

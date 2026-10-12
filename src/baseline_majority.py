@@ -13,7 +13,7 @@ CLEANED_PATH = PROJECT_ROOT / "data" / "cleaned" / "IMDB_reviews.json"
 TRAIN_PATH = PROJECT_ROOT / "data" / "splits" / "IMDB_reviews_train.json"
 TEST_PATH = PROJECT_ROOT / "data" / "splits" / "IMDB_reviews_test.json"
 OUTPUT_PATH = PROJECT_ROOT / "outputs" / "baseline0_results.csv"
-RANDOM_STATE = 42
+RANDOM_STATE = 67
 
 
 def load_labels():

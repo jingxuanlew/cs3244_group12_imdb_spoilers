@@ -75,37 +75,68 @@ which python
 ```
 This should point to something ending with `.venv/bin/python`
 
-## Spoiler-Warning Ablation (RQ4)
+## Movie-Disjoint Evaluation
 
-After downloading the dataset, run from the repository root:
+After cleaning the dataset, create the separate movie-disjoint split:
+
+```bash
+python src/split_data.py --group-by movie_id
+```
+
+This writes training and test files under `data/splits/movie_disjoint/`.
+All reviews of a movie stay together. Movies sharing identical review text,
+including text that becomes identical after spoiler-cue removal, stay together
+as well. The 80/20 sizes and class proportions are approximate because groups
+cannot be divided.
+
+Load the training file from that directory and use the same grouping for CV:
+
+```python
+from src.text_features import generate_tfidf_folds
+
+folds = generate_tfidf_folds(train_reviews, group_by="movie_id")
+```
+
+The default `python src/split_data.py` still writes the standard review-grouped
+split to `data/splits/`. Regenerate existing splits and their majority baseline
+after this update: grouping now also accounts for duplicates after cue removal.
+
+## Spoiler-Warning Ablation
+
+Use the same original training DataFrame, row order, grouping, seed, and number
+of folds for both conditions:
+
+```python
+original_folds = generate_tfidf_folds(train_reviews, k=5)
+ablated_folds = generate_tfidf_folds(train_reviews, k=5, remove_spoilers=True)
+```
+
+For RQ3, pass `group_by="movie_id"` to both calls. Each generator yields one fold
+at a time; `train_idx` and `val_idx` expose the positional row assignments.
+Both conditions use identical groups and folds. Only the ablated model inputs
+have spoiler cues removed, and TF-IDF is fitted separately within each fold.
+Do not resplit a separately cleaned dataset. Freeze `SPOILER_TERMS` before
+creating splits and keep it unchanged throughout the comparison.
+
+For the final ablated model, apply `clean_text` from `src.clean_spoilers` to the
+full training text and held-out test text, fit TF-IDF and the classifier on the
+cleaned training text, and only transform the cleaned test text. Keep empty
+reviews so both conditions evaluate the same examples.
+
+To export a cue-removed copy of the cleaned dataset, run:
 
 ```bash
 python src/clean_spoilers.py
 ```
 
-This removes explicit cues such as `SPOILER`, `spoilers ahead`, and `spoiler alert`
-from `review_text` and `review_summary`, ignoring case. It writes
-`data/processed/IMDB_reviews_remove.json`, leaving the raw file intact. Labels,
-metadata, and review order are preserved.
+This removes cues from `review_text` and `review_summary` and writes
+`data/processed/IMDB_reviews_remove.json`. Labels, metadata, and row order are
+preserved. `--input` and `--output` accept other JSON-lines paths, including
+individual split files. The script removes cues; it does not insert `[MASK]`.
 
-To replace matches with `[MASK]` instead:
-
-```bash
-python src/clean_spoilers.py --mode mask
-```
-
-The masked version is saved to `data/processed/IMDB_reviews_mask.json`. 
-
-You can specify other JSON-lines files (one review per line, even with a `.json`
-extension):
-
-```bash
-python src/clean_spoilers.py --input data/raw/IMDB_reviews.json --output data/processed/ablation.json
-```
-
-Edit `SPOILER_TERMS` in `src/clean_spoilers.py` to adjust the phrase list. Matching
-uses whole words and accepts spaces, hyphens, or underscores between phrase words.
-
+Edit `SPOILER_TERMS` in `src/clean_spoilers.py` to adjust the phrase list before
+splitting. Matching ignores case, uses whole words, and accepts spaces, hyphens,
+or underscores between phrase words.
 
 ## Adding New Package(s)
 
