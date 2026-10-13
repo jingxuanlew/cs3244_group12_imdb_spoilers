@@ -1,7 +1,6 @@
-"""Remove or mask explicit spoiler cues in the IMDb reviews JSON-lines file."""
+"""Remove explicit spoiler cues in the IMDb reviews JSON-lines file."""
 
 import argparse
-from datetime import date
 import json
 from pathlib import Path
 import re
@@ -83,9 +82,9 @@ def clean_reviews(input_path, output_path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, default=Path("data/cleaned/IMDB_reviews.json"), help="Input cleaned JSON-lines file (one review per line).")
-    parser.add_argument("--output", type=Path, help="Output file; defaults to data/processed/IMDB_reviews_<mode>.json.")
+    parser.add_argument("--output", type=Path, help="Output file; defaults to data/processed/IMDB_reviews_remove.json.")
     args = parser.parse_args()
-    output = args.output or Path(f"data/processed/IMDB_reviews_spoiler_masked.json")
+    output = args.output or Path("data/processed/IMDB_reviews_remove.json")
     total, changed = clean_reviews(args.input, output)
     print(f"Processed {total} reviews, changed {changed} reviews.")
     print(f"Saved to {output}")
