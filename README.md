@@ -138,6 +138,35 @@ Edit `SPOILER_TERMS` in `src/clean_spoilers.py` to adjust the phrase list before
 splitting. Matching ignores case, uses whole words, and accepts spaces, hyphens,
 or underscores between phrase words.
 
+## Training-Only Oversampling
+
+Enable random positive-class oversampling within each training fold:
+
+```python
+folds = generate_tfidf_folds(train_reviews, oversample_positive=True)
+```
+
+Positive training rows are sampled with replacement until they match the number
+of negative rows. Splitting and TF-IDF fitting happen first; validation rows and
+TF-IDF weights remain unchanged. Matrices stay sparse, and the existing
+`random_state` makes sampling reproducible. `train_idx` includes the repeated
+rows and stays aligned with `X_train` and `y_train`. Oversampling is off by default
+and can be combined with `group_by` and `remove_spoilers`.
+
+For the final model, fit TF-IDF on the full training partition first, then reuse
+the same helper before fitting the classifier:
+
+```python
+from src.text_features import oversample_positive_indices
+
+indices = oversample_positive_indices(y_train)
+X_train, y_train = X_train[indices], y_train[indices]  # y_train: NumPy array
+```
+
+Never apply this helper to validation/test data or before creating CV folds.
+Compare validation scores with oversampling on and off; balancing classes does
+not guarantee improved performance.
+
 ## Adding New Package(s)
 
 If you would like to add a new package e.g. pytest, follow these steps (on a new branch)
