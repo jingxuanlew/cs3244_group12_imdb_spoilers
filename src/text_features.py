@@ -1,3 +1,4 @@
+import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import StratifiedGroupKFold
 
@@ -45,6 +46,25 @@ def create_tfidf_vectorizer(
         max_features=max_features,
     )
 
+def oversample_positive_indices(y_train, random_state):
+    """Return training-row indices, repeating class 1 to match class 0.
+
+    Only does oversampling for positive examples, as EDA has shown that the proportion of spoilers is much smaller than non-spoilers.
+    """
+    y_train = np.asarray(y_train)
+    indices = np.arange(len(y_train))
+    positive = np.flatnonzero(y_train == 1)
+    extra = np.count_nonzero(y_train == 0) - len(positive)
+    if extra <= 0:
+        return indices
+    if not len(positive):
+        raise ValueError("Cannot oversample training data with no positive examples.")
+    rng = np.random.default_rng(random_state)
+    indices = np.concatenate((indices, rng.choice(positive, size=extra, replace=True)))
+    rng.shuffle(indices)
+    return indices
+
+
 def generate_tfidf_folds(
     reviews,
     k=5,
@@ -57,6 +77,7 @@ def generate_tfidf_folds(
     max_features=None,
     group_by="review_text",
     remove_spoilers=False,
+    oversample_positive=False,
 ):
     """
     Generate stratified cross-validation folds with leakage-safe TF-IDF.
@@ -94,11 +115,17 @@ def generate_tfidf_folds(
         Pass the same original training DataFrame, k and random_state for
         both conditions; grouping always accounts for cue-removed duplicates.
 
+    oversample_positive : bool
+        Randomly repeat positive training rows to balance classes after TF-IDF
+        fitting. Validation data is unchanged. Defaults to False.
+
     Yields
     ------
     dict
         Dictionary containing the fold number, transformed train/validation
         matrices, labels, fitted vectorizer, and positional train/val indices.
+        train_idx includes repeated indices when oversampling is enabled,
+        matching the rows of X_train and y_train.
     """
 
     if k < 2:
@@ -147,6 +174,12 @@ def generate_tfidf_folds(
 
         y_train = fold_train[label_col].to_numpy()
         y_val = fold_val[label_col].to_numpy()
+
+        if oversample_positive:
+            sampled = oversample_positive_indices(y_train, random_state)
+            X_train = X_train[sampled]
+            y_train = y_train[sampled]
+            train_idx = train_idx[sampled]
 
         yield {
             "fold": fold_number,
