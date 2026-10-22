@@ -75,6 +75,64 @@ which python
 ```
 This should point to something ending with `.venv/bin/python`
 
+## Preparing Initial Features
+
+Join each existing review split to the cleaned movie details:
+
+```python
+import pandas as pd
+from src.prepare_features import prepare_features, INITIAL_FEATURES
+
+# Paths below assume the repository root as the working directory.
+movies = pd.read_json("data/cleaned/IMDB_movie_details.json", lines=True, convert_dates=False)
+train_reviews = pd.read_json("data/splits/IMDB_reviews_train.json", lines=True, convert_dates=False)
+X_train = prepare_features(train_reviews, movies)
+y_train = train_reviews["is_spoiler"]
+movie_groups = train_reviews["movie_id"]
+```
+
+`X_train` contains only `review_text`, `review_summary`, `rating` (review rating),
+`plot_summary`, `plot_synopsis`, `genre`, `duration` (minutes), and
+`days_since_release` (review date minus movie release date). Its row order and
+index match `train_reviews`; labels and grouping IDs stay separate from features.
+Apply the same helper to validation/test reviews without changing their splits.
+
+Incomplete/invalid dates produce missing `days_since_release` values. Negative
+values are retained for reviews dated before release. Genre remains a list and
+text remains text: encoding, imputation, and scaling still need to be fitted on
+training folds only. This step does not fit preprocessing or run feature selection.
+Pass the complete prepared DataFrame to the shared fold function:
+
+```python
+from src.text_features import generate_tfidf_folds
+
+model_data = X_train.assign(
+    is_spoiler=train_reviews["is_spoiler"],
+    movie_id=train_reviews["movie_id"],
+)
+for fold in generate_tfidf_folds(
+    model_data, feature_columns=INITIAL_FEATURES, oversample_positive=True,
+):
+    X_fold_train, X_fold_val = fold["X_train"], fold["X_val"]
+    y_fold_train, y_fold_val = fold["y_train"], fold["y_val"]
+    # Fit and evaluate your model here.
+```
+
+The function applies separate TF-IDF vectorizers to the four text fields,
+binary-encodes genres, imputes/scales numeric columns, and combines everything
+into sparse matrices. It fits all transformations on training rows only, then
+optionally oversamples complete training rows. Labels and movie IDs are never
+model features. `max_features` limits each text vocabulary independently.
+Without `feature_columns`, the existing review-text-only behaviour is preserved.
+
+For backward elimination, pass a smaller `feature_columns` list but keep the
+original grouping columns in `model_data` so folds stay fixed. The returned
+`feature_slices` identifies each selected feature's columns, and `transformer`
+contains all fitted encoders. For final-model training, build fresh encoders with
+`create_feature_transformer(training_data, feature_columns)` from
+`src.text_features`, fit them on the full prepared training partition, and only
+transform test data. See `notebooks/04_feature_preparation.ipynb` for the full flow.
+
 ## Movie-Disjoint Evaluation
 
 After cleaning the dataset, create the separate movie-disjoint split:
@@ -118,10 +176,12 @@ have spoiler cues removed, and TF-IDF is fitted separately within each fold.
 Do not resplit a separately cleaned dataset. Freeze `SPOILER_TERMS` before
 creating splits and keep it unchanged throughout the comparison.
 
-For the final ablated model, apply `clean_text` from `src.clean_spoilers` to the
-full training text and held-out test text, fit TF-IDF and the classifier on the
-cleaned training text, and only transform the cleaned test text. Keep empty
-reviews so both conditions evaluate the same examples.
+For multi-feature ablation, pass `feature_columns=INITIAL_FEATURES` and
+`remove_spoilers=True` with the original prepared DataFrame. Review text and
+review summary are cleaned internally; plot fields are unchanged. For the final
+ablated model, pass the same options to `create_feature_transformer`, fit on
+training data, and only transform test data. Keep empty reviews so both
+conditions evaluate the same examples.
 
 To export a cue-removed copy of the cleaned dataset, run:
 
@@ -159,7 +219,7 @@ the same helper before fitting the classifier:
 ```python
 from src.text_features import oversample_positive_indices
 
-indices = oversample_positive_indices(y_train)
+indices = oversample_positive_indices(y_train, random_state=67)
 X_train, y_train = X_train[indices], y_train[indices]  # y_train: NumPy array
 ```
 
