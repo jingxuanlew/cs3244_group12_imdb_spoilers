@@ -133,6 +133,41 @@ contains all fitted encoders. For final-model training, build fresh encoders wit
 `src.text_features`, fit them on the full prepared training partition, and only
 transform test data. See `notebooks/04_feature_preparation.ipynb` for the full flow.
 
+## Logistic Regression
+
+Run `notebooks/05_logistic_regression.ipynb` after preparing the shared splits.
+It reads only the saved training reviews and cleaned movie metadata, never the
+test file. Existing feature preparation, grouped folds, training-only
+oversampling and metrics are reused by `src/logistic_regression.py`.
+
+The initial search uses 10,000 randomly sampled training reviews, five folds,
+L1/L2/elastic net with `C = [0.1, 1, 10]`, one unpenalized model, and unigram
+versus unigram/bigram TF-IDF. Elastic net's mixing ratio is fixed at 0.5.
+Each text field is capped at 5,000 features. All eight initial features are used.
+This is 20 configurations and 100 fits; weakly regularized sparse models can
+take noticeably longer. Change the notebook settings to adjust the grid or
+fold count.
+
+Mean validation spoiler F1 selects the configuration, not averaged weights.
+Precision, recall, macro-F1 and average precision (AP, not trapezoidal PR-AUC)
+are also recorded with fold standard deviations. Candidates that fail to
+converge in any fold are excluded; their scores remain visible.
+No ablation or threshold tuning is performed.
+
+Fresh encoders and model weights are then fitted on all supplied training rows.
+The notebook saves the fitted pipeline, settings, sampled source-row indices
+and CV tables under `data/models/logistic_regression_<grouping>_<scope>/`.
+The default produces a sample-trained development model, not a full-data model.
+Set `sample_size = None` and rerun for full-training tuning and refitting.
+Validation scores used for selection are not unbiased final performance;
+keep test evaluation for the end, after all modelling choices are frozen.
+
+Run the small synthetic leakage and refitting checks with:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
 ## Movie-Disjoint Evaluation
 
 After cleaning the dataset, create the separate movie-disjoint split:
