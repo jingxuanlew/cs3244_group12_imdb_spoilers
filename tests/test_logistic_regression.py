@@ -80,6 +80,7 @@ class LogisticRegressionTests(unittest.TestCase):
         np.testing.assert_array_equal(np.sort(np.concatenate(assignments[:3])), np.arange(61))
         for candidate, scores in folds.groupby("candidate"):
             self.assertAlmostEqual(summary.loc[candidate, "f1_mean"], scores["f1"].mean())
+            self.assertAlmostEqual(summary.loc[candidate, "macro_f1_mean"], scores["macro_f1"].mean())
         self.assertTrue(summary.iloc[0]["converged"])
         self.assertEqual(best["model"]["C"], summary.iloc[0]["C"])
 
@@ -114,6 +115,110 @@ class LogisticRegressionTests(unittest.TestCase):
         self.assertFalse(summary["converged"].any())
         self.assertFalse(folds["converged"].any())
         self.assertIsNone(best)
+
+    def test_ranking_uses_macro_f1_not_positive_f1(self):
+        scores = [
+            {"precision": 0.5, "recall": 0.5, "f1": f1, "macro_f1": macro, "pr_auc": 0.5}
+            for _ in range(3) for f1, macro in [(0.9, 0.5), (0.3, 0.8)]
+        ]
+        with patch.object(lr, "evaluate", side_effect=scores):
+            summary, _, best = lr.tune_logistic_regression(
+                self.data, self.model_grid, {"min_df": [1]}, k=3, verbose=False,
+            )
+        self.assertEqual(best["model"]["C"], 1.0)
+        self.assertAlmostEqual(summary.iloc[0]["macro_f1_mean"], 0.8)
+
+    def test_batched_subsets_match_separate_encoding(self):
+        subsets = [["review_text", "rating"], ["genre", "duration"], ["plot_synopsis"]]
+        grid = {"penalty": ["l2"], "C": [0.1]}
+        with patch.object(lr, "generate_tfidf_folds", wraps=generate_tfidf_folds) as folds:
+            summary, _, _ = lr.tune_logistic_regression(
+                self.data, grid, {"min_df": [1]}, feature_sets=subsets,
+                k=3, verbose=False,
+            )
+        self.assertEqual(folds.call_count, 1)
+        for candidate, subset in enumerate(subsets[:2]):
+            separate, _, _ = lr.tune_logistic_regression(
+                self.data, grid, {"min_df": [1]}, feature_columns=subset,
+                k=3, verbose=False,
+            )
+            np.testing.assert_allclose(
+                summary.loc[candidate, [f"{m}_mean" for m in lr.METRICS]].astype(float),
+                separate.iloc[0][[f"{m}_mean" for m in lr.METRICS]].astype(float),
+            )
+        self.assertFalse(summary.loc[2, "converged"])  # Empty text block.
+
+    def test_elimination_preserves_groups_even_without_review_text(self):
+        assignments = []
+
+        def checked_folds(*args, **kwargs):
+            for fold in generate_tfidf_folds(*args, **kwargs):
+                assignments.append(fold["val_idx"].copy())
+                self.assertEqual(np.sum(fold["y_train"] == 0), np.sum(fold["y_train"] == 1))
+                yield fold
+
+        params = {"model": {"penalty": "l2", "C": 0.1}, "tfidf": {"min_df": 1}}
+        with patch.object(lr, "generate_tfidf_folds", side_effect=checked_folds):
+            selected, path, trials = lr.backward_elimination(
+                self.data, params, feature_columns=["genre", "duration", "rating"],
+                k=3, verbose=False,
+            )
+        self.assertEqual(path["n_features"].tolist(), [3, 2, 1])
+        self.assertEqual(len(trials), 1 + 3 + 2)
+        self.assertEqual(path["selected"].sum(), 1)
+        self.assertEqual(selected, path.loc[path["selected"], "features"].iloc[0])
+        self.assertGreaterEqual(
+            path.loc[path["selected"], "macro_f1_mean"].iloc[0],
+            path["macro_f1_mean"].max() - 0.005,
+        )
+        for i, indices in enumerate(assignments):
+            np.testing.assert_array_equal(indices, assignments[i % 3])
+
+    def test_elimination_tolerance_is_global_not_per_step(self):
+        params = {"model": {"penalty": "l2", "C": 0.1}, "tfidf": {"min_df": 1}}
+        fixed = dict(k=3, group_by="review_text", random_state=67, oversample_positive=True)
+
+        def fake_tune(data, model_grid, tfidf_grid, feature_sets, **kwargs):
+            self.assertIs(data, self.data)
+            self.assertEqual(model_grid, {"penalty": ["l2"], "C": [0.1]})
+            self.assertEqual(tfidf_grid, {"min_df": [1]})
+            for name, value in fixed.items():
+                self.assertEqual(kwargs[name], value)
+            # Each removal costs only .004, but the cumulative loss exceeds .005.
+            score = {3: 0.8, 2: 0.796, 1: 0.792}[len(feature_sets[0])]
+            summary = pd.DataFrame({
+                "features": feature_sets, "macro_f1_mean": score,
+                "macro_f1_std": 0.01, "converged": True,
+            })
+            return summary, None, {**params, "features": feature_sets[0]}
+
+        with patch.object(lr, "tune_logistic_regression", side_effect=fake_tune):
+            selected, path, _ = lr.backward_elimination(
+                self.data, params, ["rating", "genre", "duration"], verbose=False, **fixed,
+            )
+        self.assertEqual(selected, ["genre", "duration"])
+        self.assertEqual(path["selected"].tolist(), [False, True, False])
+
+    def test_elimination_stops_when_no_removal_converges(self):
+        params = {"model": {"penalty": "l2"}, "tfidf": {}}
+        baseline = pd.DataFrame({
+            "features": [["rating", "genre"]], "macro_f1_mean": [0.7],
+            "macro_f1_std": [0.01], "converged": [True],
+        })
+        failed = pd.DataFrame({
+            "features": [["rating"], ["genre"]], "macro_f1_mean": [0.99, 0.98],
+            "macro_f1_std": [0.01, 0.01], "converged": [False, False],
+        })
+        with patch.object(lr, "tune_logistic_regression", side_effect=[
+            (baseline, None, {**params, "features": ["rating", "genre"]}),
+            (failed, None, None),
+        ]), self.assertWarns(UserWarning):
+            selected, path, trials = lr.backward_elimination(
+                self.data, params, ["rating", "genre"], verbose=False,
+            )
+        self.assertEqual(selected, ["rating", "genre"])
+        self.assertEqual(len(path), 1)
+        self.assertEqual(len(trials), 3)
 
 
 if __name__ == "__main__":
