@@ -8,3 +8,5 @@ data/*
 # Automatically created (useless) files
 .DS_Store
 __pycache__/
+
+tests/

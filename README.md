@@ -133,6 +133,71 @@ contains all fitted encoders. For final-model training, build fresh encoders wit
 `src.text_features`, fit them on the full prepared training partition, and only
 transform test data. See `notebooks/04_feature_preparation.ipynb` for the full flow.
 
+## Logistic Regression
+
+Run `notebooks/05_logistic_regression.ipynb` after preparing the shared splits.
+Sections 1-8 use saved training reviews and cleaned movie metadata, excluding
+the test set from model selection and fitting. Existing feature preparation, grouped folds, training-only
+oversampling and metrics are reused by `src/logistic_regression.py`.
+
+The initial search uses 10,000 randomly sampled training reviews, five folds,
+L1/L2/elastic net with `C = [0.001, 0.01, 0.1, 1]`, one unpenalized model,
+and TF-IDF n-gram ranges `(1, 1)`, `(1, 2)`.
+Elastic net's mixing ratio is fixed at 0.5.
+Each text field is capped at 5,000 features. All eight initial features are used.
+Each tuning stage has 26 configurations and 130 fits; weakly regularized sparse models can
+take noticeably longer. Change the notebook settings to adjust the grid or
+fold count.
+
+Mean validation macro-F1 selects the configuration, not averaged weights.
+Precision, recall, positive-class F1 and average precision (AP, not trapezoidal PR-AUC)
+are also recorded with fold standard deviations. Candidates that fail to
+converge in any fold are excluded; their scores remain visible.
+No ablation or threshold tuning is performed.
+
+The notebook now runs three stages: tune all eight feature blocks, perform
+greedy backward elimination with those hyperparameters fixed, then retune on
+the selected features using the full saved training partition. Initial tuning
+and elimination use `sample_size`; sections 7 and 8 always use all training rows.
+Each elimination step compares every possible one-block
+removal using identical folds. Independent encoders are fitted once per fold
+per step and their sparse feature blocks are reused across removal candidates.
+The original review text stays available for grouping even if excluded as an input.
+
+The plotted elimination path continues down to one usable feature (or stops if
+no removal converges). Select the smallest visited subset within
+`max_macro_f1_drop = 0.005` of the best path macro-F1, including the baseline.
+This is an absolute 0.5 percentage-point tolerance, not a per-step allowance.
+It is a greedy search, not an exhaustive search or a statistical significance test.
+The plot shows fold standard deviations, not confidence intervals.
+With eight blocks, elimination adds up to 180 fits with five-fold CV.
+
+Fresh encoders and model weights are then fitted on the full training partition.
+The notebook saves the fitted pipeline, settings, full-training and selection-row indices
+and both CV tables, elimination trials/path and plot under
+`data/models/logistic_regression_<grouping>_full_backward/`.
+Final tuning and fitting exclude the test split. Full-training CV requires
+more time and memory than the sample-based stages. Its folds differ from those
+on the sample, so the comparison table reports each stage's scope and row count;
+score changes are not a paired estimate of feature-selection improvement.
+Set `sample_size = None` only to also use full training data in the early stages.
+Validation scores reused for feature selection and tuning are not unbiased final performance;
+keep test evaluation for the end, after all modelling choices are frozen.
+
+Section 9 reloads the saved full-training pipeline and predicts the matching
+held-out test split in chunks. It does not fit, oversample, ablate or tune
+anything. It reports macro-F1, spoiler-class precision/recall/F1, accuracy,
+average precision (AP), and the confusion matrix over the complete test set.
+It saves `test_predictions.csv`, `test_metrics.csv`, and
+`test_confusion_matrix.csv` alongside the model. Do not use test scores for
+further model selection.
+
+Run the small synthetic leakage and refitting checks with:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
 ## Movie-Disjoint Evaluation
 
 After cleaning the dataset, create the separate movie-disjoint split:
