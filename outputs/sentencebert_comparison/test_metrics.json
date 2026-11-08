@@ -1,0 +1,32 @@
+[
+  {
+    "split":"review_text_grouped",
+    "best_blocks":[
+      "review_text",
+      "review_summary",
+      "plot_summary",
+      "plot_synopsis",
+      "rating",
+      "genre",
+      "duration"
+    ],
+    "baseline_params":{
+      "C":0.1,
+      "class_weight":"balanced"
+    },
+    "final_params":{
+      "C":10.0,
+      "class_weight":"balanced"
+    },
+    "accuracy":0.6746905029,
+    "precision":0.4263449383,
+    "recall":0.6860361107,
+    "f1":0.5258773935,
+    "macro_f1":0.6391405401,
+    "tn":56735,
+    "fp":27863,
+    "fn":9477,
+    "tp":20708,
+    "average_precision":0.5114102361
+  }
+]
