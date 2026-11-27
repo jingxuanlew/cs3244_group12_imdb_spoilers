@@ -10,3 +10,9 @@ data/*
 __pycache__/
 
 tests/
+
+*.npy
+*.npz
+*.pt
+*.pth
+*.safetensors
